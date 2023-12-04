@@ -1,0 +1,558 @@
+---
+title: "敏感字段识别"
+subtitle: "Sensitive Column Detector"
+author: "Leo Van | 范叶亮"
+date: "`r Sys.Date()`"
+output:
+  tufte::tufte_html:
+    self_contained: true
+    mathjax: https://cdn.bootcss.com/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML
+    number_sections: true
+ctex: yes
+biblio-title: 参考文献
+bibliography: sensitive-column-detector.bib
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+library(tufte)
+library(knitr)
+knitr::opts_chunk$set(tidy = FALSE, cache.extra = packageVersion('tufte'))
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(dev.args = list(bg = 'transparent'))
+options(htmltools.dir.version = FALSE)
+
+library(tidyverse)
+options(knitr.table.format = 'html')
+options(knitr.kable.NA = '')
+
+library(kableExtra)
+default_kable_styling <- function(kable_input) {
+    kable_styling(kable_input, bootstrap_options = 'striped')
+}
+
+library(showtext)
+font_add('Source Han Serif', 'SourceHanSerif.ttc')
+font_add('Source Han Sans', 'SourceHanSans.ttc')
+showtext_auto()
+
+pie_default_theme <- theme_minimal() +
+    theme(
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.border = element_blank(),
+        panel.grid = element_blank(),
+        text=element_text(family = 'Source Han Sans', size = 16))
+
+density_default_theme <- theme_minimal() +
+    theme(
+        text=element_text(family = 'Source Han Sans SC', size = 16))
+```
+
+# 简介
+
+本项目的主要目的是自动化的判断数据库中一张表的各个字段的敏感情况。目前数据平台的解决方案大致如下：
+
+1. 申请开通数据平台到业务系统数据库的防火墙权限。
+2. 申请接入人员填写接入申请表，并配置相关字段信息 (包括敏感信息)。
+3. 数据仓库人员审核接入申请表，并制定存储策略。
+4. 数据接入完毕。
+
+目前方案中，在业务人员填写接入申请表时，根据字段名称及其注释等相关信息，利用关键词匹配等方法对疑似敏感信息的字段进行了提示。但基于关键词匹配的方案的准确率和覆盖率都相对较低，例如：人员的薪水信息为敏感信息，但其字段的具体内容为 DOUBLE 型数值，如果字段及其注释中不包含与“薪水”相关的关键词是，当前系统则很难判断出其字段的真实含义。再例如：身份证号和驾驶证号均为身份证的号码，当字段及其注释并未明显标识其具体含义时，仅通过关键词和一些正则匹配亦无法精确判断敏感字段的类型。
+
+针对现有方案的问题，本项目针对表的字段，更多的利用其上下文的信息，例如：数据库级别信息，表级别信息，字段级别信息等不同级别信息，同时利用 Wide & Deep 模型 [@cheng2016wide] 的思想，利用传统特征 (Wide Features) 和部分特征的 Embedding 特征 (Deep Features) 构建深度学习模型对其敏感信息进行判断。
+
+# 数据
+
+## 原始数据
+
+针对当前系统，可以获取到的原始特征如下：
+
+```{r raw-features, echo=F, message=F, warning=F}
+raw_features <- read_tsv('raw-features.tsv', col_names = T)
+raw_features %>%
+    kable(booktabs = T, caption = '原始特征', longtable = T) %>%
+    default_kable_styling %>%
+    column_spec(1, width='10em') %>%
+    column_spec(2, width='10em') %>%
+    column_spec(3, width='8em') %>%
+    column_spec(4, width='8em')
+```
+
+```{r column-meta, echo=F, message=F, warning=F, cache=T}
+column_meta <- read_tsv('../data/column_meta.tsv',
+                        col_names = T, col_types = 'cccicccccccccciiic')
+```
+
+```{r column-meta-stat, echo=F, message=F, warning=F}
+stage_table_count <- nrow(distinct(column_meta, stage_table_name))
+stage_column_count <- nrow(distinct(column_meta, stage_table_name, stage_column_name))
+stage_sensitive_column_count <- nrow(filter(column_meta, column_is_sensitive==1))
+stage_sensitive_column_with_type_count <- nrow(filter(column_meta, column_is_sensitive==1, !is.na(column_sensitive_type)))
+```
+
+```{r column-value, echo=F, message=F, warning=F, cache=T}
+column_value <- read_tsv('../data/column_value.tsv',
+                         col_names = T, col_types = 'ccccc')
+```
+
+当前接入系统的表的数量共 `r stage_table_count` 个，字段数量共 `r stage_column_count`，其中敏感字段共 `r stage_sensitive_column_count` 个，占比 `r sprintf('%.2f%%', stage_sensitive_column_count/stage_column_count*100)`，包含具体敏感类型的敏感字段共 `r stage_sensitive_column_with_type_count` 个，占比 `r sprintf('%.2f%%', stage_sensitive_column_with_type_count/stage_column_count*100)`。
+
+在 `r stage_sensitive_column_with_type_count` 个有具体敏感类型的敏感字段中，敏感类型及其占比情况如下：
+
+```{r sensitive-types, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    filter(!is.na(column_sensitive_type), column_is_sensitive == 1) %>%
+    count(column_sensitive_type) %>%
+    mutate(label_pos = sum(n) - cumsum(n) + n / 2,
+           percentage = n / sum(n) * 100,
+           label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ggplot(aes(x = 1)) +
+    geom_bar(aes(y = n, fill = column_sensitive_type),
+             width = 1, stat = 'identity') +
+    guides(fill = guide_legend('字段敏感类型', ncol = 2)) +
+    geom_text(aes(y = label_pos, label = label)) +
+    coord_polar('y', start=0) +
+    pie_default_theme
+```
+
+1. 数据库 URI
+
+废弃特征
+
+2. 数据库端口
+
+不同数据库端口占比如下：
+
+```{r database-port-percentage, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    filter(!is.na(database_port)) %>%
+    count(database_port) %>%
+    mutate(label_pos = sum(n) - cumsum(n) + n / 2,
+           percentage = n / sum(n) * 100,
+           label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ggplot(aes(x = 1)) +
+    geom_bar(aes(y = n, fill = factor(database_port)),
+             width = 1, stat = 'identity') +
+    guides(fill = guide_legend('端口', ncol = 2)) +
+    geom_text(aes(y = label_pos, label = label)) +
+    coord_polar('y', start=0) +
+    pie_default_theme
+```
+
+不同数据库端口中字段敏感占比如下：
+
+```{r database-port-sensitive-percentage, fig.fullwidth=T, fig.width=8, fig.height=5, echo=F, message=F, warning=F}
+column_meta %>%
+    select(database_port, column_is_sensitive) %>%
+    filter(!is.na(database_port), !is.na(column_is_sensitive)) %>%
+    count(database_port, column_is_sensitive) %>%
+    mutate(
+        database_port = factor(database_port),
+        column_is_sensitive = factor(
+            column_is_sensitive, labels = c('非敏感', '敏感'))) %>%
+    group_by(database_port) %>%
+    mutate(
+        percentage = n / sum(n) * 100,
+        label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ungroup %>%
+    ggplot(aes(x = 1, y = n, fill=column_is_sensitive)) +
+    geom_bar(width = 1, stat = 'identity', position = position_fill()) +
+    guides(fill = guide_legend('是否敏感', ncol = 2)) +
+    facet_wrap(~ database_port, ncol = 8) +
+    geom_text(aes(label = label), position = position_fill(vjust = 0.5)) +
+    coord_polar('y', start=0) +
+    pie_default_theme +
+    theme(legend.position = 'top')
+```
+
+3. 数据库名称
+
+从数据库长度的角度来看，较短的数据库名称有更少的敏感字段，相对较长的数据库名称会有更多的敏感字段。
+
+```{r database-name-length-distribuation, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    select(database_name, column_is_sensitive) %>%
+    filter(!is.na(column_is_sensitive)) %>%
+    mutate(database_name_length=str_length(database_name)) %>%
+    ggplot() +
+    geom_density(aes(database_name_length, color=factor(column_is_sensitive))) +
+    guides(color = guide_legend('是否敏感', ncol = 2)) +
+    xlab('数据库名称长度') + ylab('密度') +
+    density_default_theme
+```
+
+4. 数据库注释
+
+从数据库长度的角度来看，敏感与非敏感的数据的分布也有一定差异。
+
+```{r database-comment-length-distribuation, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    select(database_comment, column_is_sensitive) %>%
+    filter(!is.na(column_is_sensitive)) %>%
+    mutate(database_comment_length=str_length(database_comment)) %>%
+    ggplot() +
+    geom_density(aes(database_comment_length, color=factor(column_is_sensitive))) +
+    guides(color = guide_legend('是否敏感', ncol = 2)) +
+    xlab('数据库注释长度') + ylab('密度') +
+    density_default_theme
+```
+
+5. 数据库类型
+
+不同数据库类型占比如下：
+
+```{r database-type-percentage, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    count(database_type) %>%
+    mutate(label_pos = sum(n) - cumsum(n) + n / 2,
+           percentage = n / sum(n) * 100,
+           label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ggplot(aes(x = 1)) +
+    geom_bar(aes(y = n, fill = factor(database_type)),
+             width = 1, stat = 'identity') +
+    guides(fill = guide_legend('数据库类型', ncol = 2)) +
+    geom_text(aes(y = label_pos, label = label)) +
+    coord_polar('y', start=0) +
+    pie_default_theme
+```
+
+不同数据库类型敏感字段占比如下：
+
+```{r database-type-sensitive-percentage, fig.fullwidth=T, fig.width=8, fig.height=5, echo=F, message=F, warning=F}
+column_meta %>%
+    select(database_type, column_is_sensitive) %>%
+    filter(!is.na(database_type), !is.na(column_is_sensitive)) %>%
+    count(database_type, column_is_sensitive) %>%
+    mutate(
+        database_type = factor(database_type),
+        column_is_sensitive = factor(
+            column_is_sensitive, labels = c('非敏感', '敏感'))) %>%
+    group_by(database_type) %>%
+    mutate(
+        percentage = n / sum(n) * 100,
+        label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ungroup %>%
+    ggplot(aes(x = 1, y = n, fill=column_is_sensitive)) +
+    geom_bar(width = 1, stat = 'identity', position = position_fill()) +
+    guides(fill = guide_legend('是否敏感', ncol = 2)) +
+    facet_wrap(~ database_type, ncol = 7) +
+    geom_text(aes(label = label), position = position_fill(vjust = 0.5)) +
+    coord_polar('y', start=0) +
+    pie_default_theme +
+    theme(legend.position = 'top')
+```
+
+6. 数据库是否分库分表
+
+```{r database-is-shard-sensitive-percentage, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    select(database_is_shard, column_is_sensitive) %>%
+    filter(!is.na(database_is_shard), !is.na(column_is_sensitive)) %>%
+    count(database_is_shard, column_is_sensitive) %>%
+    mutate(
+        database_is_shard = factor(
+            database_is_shard, labels = c('非分库分表', '分库分表')),
+        column_is_sensitive = factor(
+            column_is_sensitive, labels = c('非敏感', '敏感'))) %>%
+    group_by(database_is_shard) %>%
+    mutate(
+        percentage = n / sum(n) * 100,
+        label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ungroup %>%
+    ggplot(aes(x = 1, y = n, fill=column_is_sensitive)) +
+    geom_bar(width = 1, stat = 'identity', position = position_fill()) +
+    guides(fill = guide_legend('是否敏感', ncol = 2)) +
+    facet_wrap(~ database_is_shard) +
+    geom_text(aes(label = label), position = position_fill(vjust = 0.5)) +
+    coord_polar('y', start=0) +
+    pie_default_theme
+```
+
+7. 表名称
+
+```{r table-name-length-distribuation, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    select(table_name, column_is_sensitive) %>%
+    filter(!is.na(column_is_sensitive)) %>%
+    mutate(table_name_length=str_length(table_name)) %>%
+    ggplot() +
+    geom_density(aes(table_name_length, color=factor(column_is_sensitive))) +
+    guides(color = guide_legend('是否敏感', ncol = 2)) +
+    xlab('表名称长度') + ylab('密度') +
+    density_default_theme
+```
+
+8. 表注释
+
+```{r table-comment-length-distribuation, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    select(table_comment, column_is_sensitive) %>%
+    filter(!is.na(column_is_sensitive)) %>%
+    mutate(table_comment_length=str_length(table_comment)) %>%
+    ggplot() +
+    geom_density(aes(table_comment_length, color=factor(column_is_sensitive))) +
+    guides(color = guide_legend('是否敏感', ncol = 2)) +
+    xlab('表注释长度') + ylab('密度') +
+    density_default_theme
+```
+
+9. 表主题
+
+不同表主题占比情况如下：
+
+```{r table-theme-percentage, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    count(table_theme) %>%
+    mutate(label_pos = sum(n) - cumsum(n) + n / 2,
+           percentage = n / sum(n) * 100,
+           label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ggplot(aes(x = 1)) +
+    geom_bar(aes(y = n, fill = factor(table_theme)),
+             width = 1, stat = 'identity') +
+    guides(fill = guide_legend('表主题', ncol = 2)) +
+    geom_text(aes(y = label_pos, label = label)) +
+    coord_polar('y', start=0) +
+    pie_default_theme
+```
+
+不同表主题的敏感字段占比情况如下：
+
+```{r table-theme-sensitive-percentage, fig.fullwidth=T, fig.width=8, fig.height=6, echo=F, message=F, warning=F}
+column_meta %>%
+    select(table_theme, column_is_sensitive) %>%
+    filter(!is.na(table_theme), !is.na(column_is_sensitive)) %>%
+    count(table_theme, column_is_sensitive) %>%
+    mutate(
+        table_theme = factor(table_theme),
+        column_is_sensitive = factor(
+            column_is_sensitive, labels = c('非敏感', '敏感'))) %>%
+    group_by(table_theme) %>%
+    mutate(
+        percentage = n / sum(n) * 100,
+        label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ungroup %>%
+    ggplot(aes(x = 1, y = n, fill=column_is_sensitive)) +
+    geom_bar(width = 1, stat = 'identity', position = position_fill()) +
+    guides(fill = guide_legend('是否敏感', ncol = 2)) +
+    facet_wrap(~ table_theme, ncol = 6) +
+    geom_text(aes(label = label), position = position_fill(vjust = 0.5)) +
+    coord_polar('y', start=0) +
+    pie_default_theme +
+    theme(legend.position = 'top')
+```
+
+10. 字段名称
+
+```{r column-name, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    select(column_name, column_is_sensitive) %>%
+    filter(!is.na(column_is_sensitive)) %>%
+    mutate(column_name_length=str_length(column_name)) %>%
+    filter(column_name_length <= 30) %>%
+    ggplot() +
+    geom_density(aes(column_name_length, color=factor(column_is_sensitive))) +
+    guides(color = guide_legend('是否敏感', ncol = 2)) +
+    xlab('字段名称长度') + ylab('密度') +
+    density_default_theme
+```
+
+11. 字段注释
+
+```{r column-comment-setup, echo=F, message=F, warning=F}
+column_comment_length_threshold <- 30
+```
+
+字段注释具有比较明显的长尾现象，下图为截取了长度小于 `r column_comment_length_threshold` 的字段注释的长度分布情况：
+
+```{r column-comment-length-density, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    select(column_comment, column_is_sensitive) %>%
+    filter(!is.na(column_is_sensitive)) %>%
+    mutate(column_comment_length=str_length(column_comment)) %>%
+    filter(column_comment_length < column_comment_length_threshold) %>%
+    ggplot() +
+    geom_density(aes(column_comment_length, color=factor(column_is_sensitive))) +
+    guides(color = guide_legend('是否敏感', ncol = 2)) +
+    xlab('字段注释长度 (仅 <= 30)') + ylab('密度') +
+    density_default_theme
+```
+
+字段注释长度小于 `r column_comment_length_threshold` 和大于等于  `r column_comment_length_threshold` 不同情况下，字段敏感的占比如下：
+
+```{r column-comment-length-sensitive-percentage, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    mutate(column_comment_long = str_length(column_comment) >= 30) %>%
+    select(column_comment_long, column_is_sensitive) %>%
+    filter(!is.na(column_comment_long), !is.na(column_is_sensitive)) %>%
+    count(column_comment_long, column_is_sensitive) %>%
+    mutate(
+        column_comment_long = factor(
+            column_comment_long, labels = c('字段注释长度 < 30', '字段注释长度 >= 30')),
+        column_is_sensitive = factor(
+            column_is_sensitive, labels = c('非敏感', '敏感'))) %>%
+    group_by(column_comment_long) %>%
+    mutate(
+        percentage = n / sum(n) * 100,
+        label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ungroup %>%
+    ggplot(aes(x = 1, y = n, fill=column_is_sensitive)) +
+    geom_bar(width = 1, stat = 'identity', position = position_fill()) +
+    guides(fill = guide_legend('是否敏感', ncol = 2)) +
+    facet_wrap(~ column_comment_long) +
+    geom_text(aes(label = label), position = position_fill(vjust = 0.5)) +
+    coord_polar('y', start=0) +
+    pie_default_theme
+```
+
+12. 字段类型
+
+不同字段类型的占比如下：
+
+```{r column-type-percentage, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_type_count <- column_meta %>%
+    mutate(column_type_ = gsub('\\(.+\\)', '', column_type)) %>%
+    mutate(column_type_ = str_to_upper(column_type_)) %>%
+    mutate(column_type_ = str_trim(column_type_)) %>%
+    count(column_type_)
+
+column_type_count_ <- union(
+    column_type_count %>%
+        filter(n / sum(n) <= 0.01) %>%
+        tally(n) %>%
+        transmute(column_type_ = '其他', n=nn),
+    column_type_count %>%
+        filter(n / sum(n) > 0.01)
+)
+
+column_type_count_ %>%
+    arrange(column_type_) %>%
+    mutate(label_pos = sum(n) - cumsum(n) + n / 2,
+           percentage = n / sum(n) * 100,
+           label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ggplot(aes(x = 1)) +
+    geom_bar(aes(y = n, fill = factor(column_type_)),
+             width = 1, stat = 'identity') +
+    guides(fill = guide_legend('字段类型', ncol = 2)) +
+    geom_text(aes(y = label_pos, label = label)) +
+    coord_polar('y', start=0) +
+    pie_default_theme
+```
+
+不同字段类型敏感字段的占比如下：
+
+```{r column-type-sensitive-percentage, fig.fullwidth=T, fig.width=8, fig.height=5, echo=F, message=F, warning=F}
+column_type_mapping <- column_meta %>%
+    mutate(column_type_ = gsub('\\(.+\\)', '', column_type)) %>%
+    mutate(column_type_ = str_to_upper(column_type_)) %>%
+    mutate(column_type_ = str_trim(column_type_)) %>%
+    count(column_type_) %>%
+    mutate(column_type__ = ifelse(n / sum(n) <= 0.01, '其他', column_type_)) %>%
+    select(column_type_, column_type__)
+
+column_type_mapping_ <- function(type) {
+    column_type_mapping$column_type__[which(column_type_mapping$column_type_==type)]
+}
+
+column_meta %>%
+    mutate(column_type_ = gsub('\\(.+\\)', '', column_type)) %>%
+    mutate(column_type_ = str_to_upper(column_type_)) %>%
+    mutate(column_type_ = str_trim(column_type_)) %>%
+    select(column_type_, column_is_sensitive) %>%
+    mutate(column_type = Vectorize(column_type_mapping_)(column_type_)) %>%
+    select(column_type, column_is_sensitive) %>%
+    filter(!is.na(column_type), !is.na(column_is_sensitive)) %>%
+    count(column_type, column_is_sensitive) %>%
+    mutate(
+        column_type = factor(column_type),
+        column_is_sensitive = factor(
+            column_is_sensitive, labels = c('非敏感', '敏感'))) %>%
+    group_by(column_type) %>%
+    mutate(
+        percentage = n / sum(n) * 100,
+        label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ungroup %>%
+    ggplot(aes(x = 1, y = n, fill=column_is_sensitive)) +
+    geom_bar(width = 1, stat = 'identity', position = position_fill()) +
+    guides(fill = guide_legend('是否敏感', ncol = 2)) +
+    facet_wrap(~ column_type, ncol = 7) +
+    geom_text(aes(label = label), position = position_fill(vjust = 0.5)) +
+    coord_polar('y', start=0) +
+    pie_default_theme +
+    theme(legend.position = 'top')
+```
+
+13. 字段是否为主键
+
+```{r column-is-primary-key-sensitive-percentage, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    select(column_is_primary_key, column_is_sensitive) %>%
+    filter(!is.na(column_is_primary_key), !is.na(column_is_sensitive)) %>%
+    count(column_is_primary_key, column_is_sensitive) %>%
+    mutate(
+        column_is_primary_key = factor(
+            column_is_primary_key, labels = c('非主键', '主键')),
+        column_is_sensitive = factor(
+            column_is_sensitive, labels = c('非敏感', '敏感'))) %>%
+    group_by(column_is_primary_key) %>%
+    mutate(
+        percentage = n / sum(n) * 100,
+        label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ungroup %>%
+    ggplot(aes(x = 1, y = n, fill=column_is_sensitive)) +
+    geom_bar(width = 1, stat = 'identity', position = position_fill()) +
+    guides(fill = guide_legend('是否敏感', ncol = 2)) +
+    facet_wrap(~ column_is_primary_key) +
+    geom_text(aes(label = label), position = position_fill(vjust = 0.5)) +
+    coord_polar('y', start=0) +
+    pie_default_theme
+```
+
+14. 字段可否为空
+
+```{r column-allow-null-sensitive-percentage, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_meta %>%
+    select(column_allow_null, column_is_sensitive) %>%
+    filter(!is.na(column_allow_null), !is.na(column_is_sensitive)) %>%
+    count(column_allow_null, column_is_sensitive) %>%
+    mutate(
+        column_allow_null = factor(
+            column_allow_null, labels = c('不可为空', '可为空')),
+        column_is_sensitive = factor(
+            column_is_sensitive, labels = c('非敏感', '敏感'))) %>%
+    group_by(column_allow_null) %>%
+    mutate(
+        percentage = n / sum(n) * 100,
+        label = ifelse(percentage > 1, sprintf('%.2f%%', percentage), '')) %>%
+    ungroup %>%
+    ggplot(aes(x = 1, y = n, fill=column_is_sensitive)) +
+    geom_bar(width = 1, stat = 'identity', position = position_fill()) +
+    guides(fill = guide_legend('是否敏感', ncol = 2)) +
+    facet_wrap(~ column_allow_null) +
+    geom_text(aes(label = label), position = position_fill(vjust = 0.5)) +
+    coord_polar('y', start=0) +
+    pie_default_theme
+```
+
+15. 字段内容
+
+```{r column-value-setup, echo=F, message=F, warning=F}
+column_value_length_threshold <- 50
+```
+
+字段内容长度具有比较明显的长尾现象，下图为截取了长度小于 `r column_value_length_threshold` 的字段内容的长度分布情况：
+
+```{r column-value-length-density, fig.width=8, fig.height=4, echo=F, message=F, warning=F}
+column_value %>%
+    select(column_value, column_is_sensitive) %>%
+    filter(!is.na(column_is_sensitive)) %>%
+    mutate(column_value_length=str_length(column_value)) %>%
+    filter(column_value_length < column_value_length_threshold) %>%
+    ggplot() +
+    geom_density(aes(column_value_length, color=factor(column_is_sensitive))) +
+    guides(color = guide_legend('是否敏感', ncol = 2)) +
+    xlab('字段内容长度') + ylab('密度') +
+    density_default_theme
+```

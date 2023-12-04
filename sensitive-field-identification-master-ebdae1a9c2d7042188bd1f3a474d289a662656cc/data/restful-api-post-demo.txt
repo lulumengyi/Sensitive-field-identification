@@ -1,0 +1,44 @@
+# Header
+Content-Type    application/json
+
+# Body
+{
+    "stage_table_name": "S_HB1_CDS_PLEDGE_ACCT_CONVERT",
+    "stage_column_name": "D_CUST_ID",
+    "database_uri": "hbase-cds-nn01.pekdc1.jdfin.local:2181,hbase-cds-nn02.pekdc1.jdfin.local:2181,hbase-cds-nn03.pekdc1.jdfin.local:2181",
+    "database_port": "2181",
+    "database_name": "",
+    "database_comment": "",
+    "database_type": "hbase",
+    "database_is_shard": "0",
+    "table_name": "cds_pledge_acct_convert",
+    "table_comment": "质押账户转换结果表",
+    "table_theme": "风控",
+    "column_name": "d:cust_id",
+    "column_comment": "申请人身份证号",
+    "column_type": "STRING",
+    "column_is_primary_key": "0",
+    "column_allow_null": "1",
+    "column_is_sensitive": "1",
+    "column_sensitive_type": "身份证",
+    "column_value": ["441424199804296078", "142724198106214110", "440203198411021526", "410482198910061136", "411024198611108534", "320106199105150857", "420321199411162459", "441402198808081098", "320682199204221554", "230281199809082315"]
+}
+
+# Expected result
+{
+    "label": 5,
+    "raw_label": "身份证",
+    "probability": 1,
+    "predictions": [
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5
+    ]
+}

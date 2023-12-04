@@ -1,0 +1,188 @@
+@font-face {
+  font-family: 'Yanone Kaffeesatz';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Yanone Kaffeesatz Regular'), local('YanoneKaffeesatz-Regular'), url('../fonts/yanone-kaffeesatz.woff') format('woff');
+}
+
+body {
+  font-family: "Linux Libertine", Alegreya, 'Palatino Linotype', 'Book Antiqua', Palatino, source-han-serif-sc, 'Source Han Serif SC', 'Source Han Serif CN', 'Source Han Serif TC', 'Source Han Serif TW', 'Source Han Serif', 'Songti SC', '仿宋', FangSong,NSimSun, 'Microsoft YaHei', serif;
+}
+
+h1, h2, h3 {
+  font-family: 'Yanone Kaffeesatz', 'Palatino Linotype', 'Book Antiqua', Palatino, source-han-serif-sc, 'Source Han Serif SC', 'Source Han Serif CN', 'Source Han Serif TC', 'Source Han Serif TW', 'Source Han Serif', 'Songti SC', '仿宋', FangSong,NSimSun, 'Microsoft YaHei', serif;
+  font-weight: normal;
+}
+
+tfoot {
+  font-family: "Linux Libertine", Baskerville, Georgia, "Liberation Serif", "Kaiti SC", STKaiti, "AR PL UKai CN", "AR PL UKai HK", "AR PL UKai TW", "AR PL UKai TW MBE", "AR PL KaitiM GB", KaiTi, KaiTi_GB2312, DFKai-SB, "TW\-Kai", serif;
+}
+
+.remark-code, .remark-inline-code {
+  font-family: Iosevka, "Sarasa Mono SC", Consolas, "Lucida Console", Monaco, "Andale Mono", "Ubuntu Mono", "Kaiti SC", STKaiti, "AR PL UKai CN", "AR PL UKai HK", "AR PL UKai TW", "AR PL UKai TW MBE", "AR PL KaitiM GB", KaiTi, KaiTi_GB2312, DFKai-SB, "TW\-Kai", monospace;
+}
+
+a {
+  color: #000000;
+}
+
+.inverse a {
+  color: #FFFFFF;
+}
+
+.mjx-chtml {
+  font-size: 100% !important;
+}
+
+.katex-html {
+  display: none;
+}
+
+h1, h2, h3, h4 {
+  font-weight: bold;
+}
+
+h3 {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+h4 {
+  font-size: 30px;
+}
+
+.title-slide h1 {
+  font-weight: bold;
+}
+
+.title-slide h2 {
+  font-weight: bold;
+}
+
+.remark-slide-content h2 {
+  font-weight: bold;
+}
+
+.inverse .remark-slide-number {
+  display: none;
+}
+
+.remark-slide table {
+  border-top: none;
+  border-bottom: none;
+  border-collapse: collapse;
+}
+
+th, td {
+  border-left: 6px solid #fff;
+  border-right: 6px solid #fff;
+}
+
+tbody tr {
+  border-top: 6px solid #fff;
+}
+
+thead {
+  border-top: 1px solid #666;
+}
+
+tbody {
+  border-bottom: 1px solid #666;
+}
+
+.remark-slide tfoot {
+  background: none;
+}
+
+tfoot th, tfoot td {
+  padding: 5px !important;
+}
+
+.grid {
+  display: flex;
+}
+
+.grid-cell-1of2 {
+  flex: 0 0 50%;
+}
+
+.grid-cell-1of3 {
+  flex: 0 0 33%;
+}
+
+.grid-cell-2of3 {
+  flex: 0 0 66%;
+}
+
+.grid-cell-1of4 {
+  flex: 0 0 25%;
+}
+
+.grid-cell-3of4 {
+  flex: 0 0 75%;
+}
+
+.grid-cell-1of5 {
+  flex: 0 0 20%;
+}
+
+.grid-cell-2of5 {
+  flex: 0 0 40%;
+}
+
+.grid-cell-3of5 {
+  flex: 0 0 60%;
+}
+
+.grid-cell-4of5 {
+  flex: 0 0 80%;
+}
+
+.grid-cell-1of6 {
+  flex: 0 0 16%;
+}
+
+.grid-cell-1of10 {
+  flex: 0 0 10%;
+}
+
+.grid-left p {
+  padding-right: 3%;
+}
+
+.grid-right p {
+  padding-left: 3%;
+}
+
+.grid-middle p {
+  padding-left: 3%;
+  padding-right: 3%;
+}
+
+.pseudocode {
+  display: none;
+}
+
+.github-item {
+  height: 30px;
+  line-height: 30px;
+}
+
+.github-avatar {
+  height: 30px;
+  vertical-align: middle;
+}
+
+.github-name {
+  margin-left: 3px;
+}
+
+.github-star {
+  float: right;
+  margin-left: 3px;
+}
+
+.github-rank {
+  float: right;
+  margin-left: 3px;
+}

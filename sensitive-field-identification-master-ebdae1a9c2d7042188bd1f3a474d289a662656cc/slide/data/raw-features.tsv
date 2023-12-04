@@ -1,0 +1,8 @@
+名称	注释	类型	名称	注释	类型	名称	注释	类型
+stage_table_name	Stage 层表名<sup>*</sup>	文本	stage_column_name	Stage 层字段名<sup>*</sup>	文本	database_uri	数据库 URI	文本	
+database_port	数据库端口	分类	database_name	数据库名称	文本	database_comment	数据库注释	文本
+database_type	数据库类型	分类	database_is_shard	数据库是否分库分表	分类	table_name	表名称	文本	
+table_comment	表注释	文本	table_theme	表主题	分类	column_name	字段名称	文本	
+column_comment	字段注释	文本	column_type	字段类型	文本	colunm_is_primary_key	字段是否为主键	分类	
+column_allow_null	字段可否为空	分类	column_is_sensitive	字段是否为敏感字段	分类	column_sensitive_type	字段敏感类型	分类	
+column_value	字段值	文本			

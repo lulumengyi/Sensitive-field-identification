@@ -1,0 +1,20 @@
+名称	注释	类型	枚举值
+stage_table_name	Stage 层表名	TEXT	
+stage_column_name	Stage 层字段名	TEXT	
+database_uri	数据库 URI	TEXT	
+database_port	数据库端口	NUMERIC	
+database_name	数据库名称	TEXT	
+database_comment	数据库注释	TEXT	
+database_type	数据库类型	CATEGORICAL	ORACLE, MYSQL, JDMETA, JRTC, TEXT, MONGODB, SQLSERVER, HBASE, HIVE, JRDW, FILE, DEL-MYSQL, JREP, OTHERS
+database_is_shard	数据库是否分库分表	CATEGORICAL	0, 1
+table_name	表名称	TEXT	
+table_comment	表注释	TEXT	
+table_theme	表主题	CATEGORICAL	支付, 其他, 京东商城, 消费金融, 保障险, 账户融合, 财务, 理财, 风控, 外部数据, 众筹, 客服, 供应链金融, 流量, 用户生态, 市场, APP, 农村金融, OTHERS
+column_name	字段名称	TEXT	
+column_comment	字段注释	TEXT	
+column_type	字段类型	TEXT	
+colunm_is_primary_key	字段是否为主键	CATEGORICAL	0, 1
+column_allow_null	字段可否为空	CATEGORICAL	0, 1
+column_is_sensitive	字段是否为敏感字段	CATEGORICAL	0, 1
+column_sensitive_type	字段敏感类型	CATEGORICAL	身份证, 姓名, 地址, 手机, 卡号, 其他, 固定电话, 邮箱, 京东PIN, OTHERS
+column_value	字段值		
