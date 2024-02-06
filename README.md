@@ -21,3 +21,8 @@
 
 ![2261707232770_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/a9d15de7-aa8e-44b7-9358-9a7c1284baa8)
 
+![2271707232839_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/187249af-3ef8-4c6e-8472-73572ae5238f)
+![2281707232859_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/a84b3cee-4255-4cac-8236-764e3af70dbe)
+![2291707232884_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/64bd8742-8bf6-443e-8035-974263d7e239)
+![2301707232897_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/c9c370a4-8b81-4c63-8902-19d06cabcb22)
+![2311707232910_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/319a58c6-e01e-4257-ab8c-709185d5605a)
