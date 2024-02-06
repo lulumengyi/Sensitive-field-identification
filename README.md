@@ -18,4 +18,9 @@
 根据数据的元信息 (例如:表名，表注释，字段名，字段注释等) 和值信息 (即字段存储的数据值)，
 利用 Wide & Deep 网络构建识别模型。提取传统特征构建 Wide 网络，针对文本特征，利用 Char Embedding + CNN 构建 Deep 网络，模型测试数据的 F1-Score 为 95%+ 
 
-![Uploading image.png…]()
+
+![2231707232549_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/c18490f4-7d03-4b42-b5ab-1362ae746444)
+
+![2241707232577_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/c5ed4ba0-d302-4940-bc05-f0691a0a44da)
+
+![2251707232619_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/fbd01c46-e6e4-4b54-877e-77bedd695e7b)
