@@ -19,8 +19,5 @@
 利用 Wide & Deep 网络构建识别模型。提取传统特征构建 Wide 网络，针对文本特征，利用 Char Embedding + CNN 构建 Deep 网络，模型测试数据的 F1-Score 为 95%+ 
 
 
-![2231707232549_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/c18490f4-7d03-4b42-b5ab-1362ae746444)
+![2261707232770_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/a9d15de7-aa8e-44b7-9358-9a7c1284baa8)
 
-![2241707232577_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/c5ed4ba0-d302-4940-bc05-f0691a0a44da)
-
-![2251707232619_ pic](https://github.com/lulumengyi/Sensitive-field-identification/assets/32284131/fbd01c46-e6e4-4b54-877e-77bedd695e7b)
