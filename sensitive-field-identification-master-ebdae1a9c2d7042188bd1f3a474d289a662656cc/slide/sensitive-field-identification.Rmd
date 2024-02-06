@@ -1,6 +1,6 @@
 ---
 title: "敏感字段识别"
-author: "技术研发部 - 数据资产部 - 范叶亮"
+author: "京东技术研发部 - 数据资产部 - 卢梦依"
 date: "2018/11/23"
 output:
   xaringan::moon_reader:
@@ -491,4 +491,4 @@ class: inverse, center, middle
 
 **本作品采用 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) 进行许可**
 
-**了解更多内容，来我 [主页](https://leovan.me) 看看吧**
+**了解更多内容，来我 [主页]看看吧**
